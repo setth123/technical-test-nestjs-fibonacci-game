@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cờ Caro</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav><a href="/">← Trang chủ</a></nav>
+  <h1>Cờ Caro X O</h1>
+  <button id="find" onclick="findMatch()">Tìm trận</button>
+  <div class="status" id="status">Bấm "Tìm trận" để ghép cặp ngẫu nhiên</div>
+  <p id="msg"></p>
+  <canvas id="board" width="450" height="450"></canvas>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="common.js"></script>
+  <script>
+    requireLogin();
+    const N = 15, CELL = 30;
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    const $ = (id) => document.getElementById(id);
+
+    let board, mySymbol = null, turn = null, opponent = '', playing = false, lastMove = null;
+
+    const socket = io('/caro', { auth: { token: auth.token } });
+    socket.on('disconnect', () => ($('msg').textContent = 'Mất kết nối / phiên đăng nhập hết hạn'));
+    socket.on('error_message', (m) => ($('msg').textContent = m));
+    socket.on('waiting', () => ($('status').textContent = '⏳ Đang chờ đối thủ...'));
+    socket.on('match_start', (data) => {
+      board = Array.from({ length: N }, () => Array(N).fill(null));
+      mySymbol = data.symbol; opponent = data.opponent; turn = 'X'; playing = true; lastMove = null;
+      $('find').disabled = true;
+      updateStatus(); draw();
+    });
+    socket.on('moved', ({ r, c, symbol, turn: next }) => {
+      board[r][c] = symbol; turn = next; lastMove = { r, c };
+      $('msg').textContent = '';
+      updateStatus(); draw();
+    });
+    socket.on('game_over', ({ result, reason }) => {
+      playing = false;
+      $('find').disabled = false;
+      const text = result === 'draw' ? '🤝 Hòa' : result === mySymbol ? '🏆 Bạn thắng!' : '😢 Bạn thua';
+      $('status').textContent = `${text} (${reason})`;
+    });
+
+    function findMatch() { socket.emit('find_match'); }
+
+    function updateStatus() {
+      $('status').textContent = `Bạn: ${mySymbol} — Đối thủ: ${opponent} — ` +
+        (turn === mySymbol ? '👉 Lượt của bạn' : `Lượt của ${turn}`);
+    }
+
+    canvas.addEventListener('click', (e) => {
+      if (!playing || turn !== mySymbol) return;
+      const rect = canvas.getBoundingClientRect();
+      const c = Math.floor(((e.clientX - rect.left) / rect.width) * N);
+      const r = Math.floor(((e.clientY - rect.top) / rect.height) * N);
+      if (!board[r][c]) socket.emit('move', { r, c });
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#ccc';
+      for (let i = 0; i <= N; i++) {
+        ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, N * CELL); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(N * CELL, i * CELL); ctx.stroke();
+      }
+      if (!board) return;
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      board.forEach((row, r) => row.forEach((v, c) => {
+        if (!v) return;
+        if (lastMove && lastMove.r === r && lastMove.c === c) {
+          ctx.fillStyle = '#fff59d'; ctx.fillRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2);
+        }
+        ctx.fillStyle = v === 'X' ? '#e53935' : '#1e88e5';
+        ctx.fillText(v, c * CELL + CELL / 2, r * CELL + CELL / 2 + 1);
+      }));
+    }
+    draw();
+  </script>
+</body>
+</html>

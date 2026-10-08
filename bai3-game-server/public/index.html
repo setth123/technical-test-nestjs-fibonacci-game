@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Server</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Game Server</h1>
+  <p id="msg"></p>
+
+  <div id="guest" class="card">
+    <h3>Đăng nhập / Đăng ký</h3>
+    <input id="username" placeholder="username">
+    <input id="password" type="password" placeholder="password (≥ 6 ký tự)">
+    <br>
+    <button onclick="login()">Đăng nhập</button>
+    <button onclick="register()">Đăng ký</button>
+  </div>
+
+  <div id="member" hidden>
+    <div class="card">
+      <h3>Xin chào, <span id="hello"></span></h3>
+      <nav><a href="line98.html">▶ Line 98</a><a href="caro.html">▶ Cờ Caro</a></nav>
+    </div>
+    <div class="card">
+      <h3>Cập nhật thông tin</h3>
+      <input id="email" placeholder="email">
+      <input id="nickname" placeholder="nickname">
+      <button onclick="saveProfile()">Lưu</button>
+      <button onclick="auth.token = null; location.reload()">Đăng xuất</button>
+    </div>
+  </div>
+
+  <script src="common.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msg = (text, ok) => { $('msg').textContent = text; $('msg').style.color = ok ? 'green' : '#c00'; };
+    const credentials = () => ({ username: $('username').value, password: $('password').value });
+
+    async function register() {
+      try { await api('POST', '/auth/register', credentials()); msg('Đăng ký thành công, hãy đăng nhập', true); }
+      catch (e) { msg(e.message); }
+    }
+    async function login() {
+      try { auth.token = (await api('POST', '/auth/login', credentials())).accessToken; loadProfile(); }
+      catch (e) { msg(e.message); }
+    }
+    async function saveProfile() {
+      const body = {};
+      if ($('email').value) body.email = $('email').value;
+      if ($('nickname').value) body.nickname = $('nickname').value;
+      try { showProfile(await api('PATCH', '/users/me', body)); msg('Đã lưu', true); }
+      catch (e) { msg(e.message); }
+    }
+    function showProfile(user) {
+      $('guest').hidden = true; $('member').hidden = false;
+      $('hello').textContent = user.nickname || user.username;
+      $('email').value = user.email || '';
+      $('nickname').value = user.nickname || '';
+    }
+    async function loadProfile() {
+      if (!auth.token) return;
+      try { showProfile(await api('GET', '/users/me')); msg(''); }
+      catch { auth.token = null; }
+    }
+    loadProfile();
+  </script>
+</body>
+</html>

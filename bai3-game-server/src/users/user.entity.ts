@@ -1,0 +1,19 @@
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity()
+export class User {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ unique: true })
+  username: string;
+
+  @Column()
+  passwordHash: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  email: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  nickname: string | null;
+}

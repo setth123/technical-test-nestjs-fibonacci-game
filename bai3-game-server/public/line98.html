@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Line 98</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav><a href="/">← Trang chủ</a></nav>
+  <h1>Line 98</h1>
+  <div class="status">Điểm: <span id="score">0</span> <span id="over"></span></div>
+  <button onclick="socket.emit('hint')">💡 Trợ giúp</button>
+  <button onclick="socket.emit('start', { newGame: true })">Ván mới</button>
+  <p id="msg"></p>
+  <canvas id="board" width="450" height="450"></canvas>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="common.js"></script>
+  <script>
+    requireLogin();
+    const COLORS = [null, '#e53935', '#43a047', '#1e88e5', '#fdd835', '#8e24aa'];
+    const N = 9, CELL = 50;
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+
+    let board = [];
+    let selected = null;   // ô đang chọn {r, c}
+    let hint = null;       // gợi ý {from, to}
+    let moving = null;     // bóng đang di chuyển {color, r, c}
+    let gameOver = false;
+
+    const socket = io('/line98', { auth: { token: auth.token } });
+    socket.on('connect', () => socket.emit('start'));
+    socket.on('disconnect', () => (document.getElementById('msg').textContent = 'Mất kết nối / phiên đăng nhập hết hạn'));
+    socket.on('error_message', (m) => (document.getElementById('msg').textContent = m));
+    socket.on('hint', (h) => (hint = h));
+    socket.on('state', async (state) => {
+      document.getElementById('msg').textContent = '';
+      if (state.lastMove) await animateMove(state.lastMove.path);
+      board = state.board;
+      gameOver = state.gameOver;
+      document.getElementById('score').textContent = state.score;
+      document.getElementById('over').textContent = gameOver ? '— Hết ván! Bấm "Ván mới"' : '';
+    });
+
+    // Hiệu ứng di chuyển: bóng chạy theo đường đi server trả về
+    async function animateMove(path) {
+      const { r, c } = path[0];
+      moving = { color: board[r][c] };
+      board[r][c] = 0;
+      for (const step of path) {
+        Object.assign(moving, step);
+        await new Promise((ok) => setTimeout(ok, 35));
+      }
+      moving = null;
+    }
+
+    canvas.addEventListener('click', (e) => {
+      if (gameOver || moving) return;
+      const rect = canvas.getBoundingClientRect();
+      const c = Math.floor(((e.clientX - rect.left) / rect.width) * N);
+      const r = Math.floor(((e.clientY - rect.top) / rect.height) * N);
+      hint = null;
+      if (board[r][c]) selected = { r, c };                 // chọn bóng
+      else if (selected) {                                   // chọn ô trống => di chuyển
+        socket.emit('move', { from: selected, to: { r, c } });
+        selected = null;
+      }
+    });
+
+    function drawBall(r, c, color, scale = 1) {
+      ctx.beginPath();
+      ctx.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, CELL * 0.38 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+
+    function render(time) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+          const isHint = hint && ((hint.from.r === r && hint.from.c === c) || (hint.to.r === r && hint.to.c === c));
+          ctx.fillStyle = isHint ? '#fff59d' : '#eceff1';
+          ctx.fillRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2);
+          if (!board[r]?.[c]) continue;
+          // Bóng được chọn: phóng to theo nhịp (hiệu ứng "đập")
+          const isSelected = selected && selected.r === r && selected.c === c;
+          drawBall(r, c, COLORS[board[r][c]], isSelected ? 1.15 + 0.1 * Math.sin(time / 120) : 1);
+        }
+      }
+      if (moving) drawBall(moving.r, moving.c, COLORS[moving.color]);
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
