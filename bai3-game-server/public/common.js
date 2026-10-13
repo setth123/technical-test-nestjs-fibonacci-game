@@ -1,7 +1,7 @@
 // Tiện ích dùng chung cho các trang
 const auth = {
-  get token() { return localStorage.getItem('token'); },
-  set token(v) { v ? localStorage.setItem('token', v) : localStorage.removeItem('token'); },
+  get token() { return sessionStorage.getItem('token'); },
+  set token(v) { v ? sessionStorage.setItem('token', v) : sessionStorage.removeItem('token'); },
 };
 
 async function api(method, url, body) {
